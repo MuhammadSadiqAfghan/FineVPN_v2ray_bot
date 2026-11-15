@@ -1,0 +1,100 @@
+name: finevpn
+services:
+  vpn-panel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: main-panel
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      PORT: "8000"
+      RAILWAY_PUBLIC_DOMAIN: ${VPN_PANEL_DOMAIN:?تنظیم VPN_PANEL_DOMAIN در .env الزامی است}
+      ALLOWED_PUBLIC_HOSTS: ${VPN_PANEL_DOMAIN}
+      ADMIN_USERNAME: ${VPN_PANEL_ADMIN_USERNAME:?تنظیم نام کاربری پنل الزامی است}
+      ADMIN_PASSWORD: ${VPN_PANEL_ADMIN_PASSWORD:?تنظیم رمز عبور پنل الزامی است}
+      ADMIN_PASSWORD_RESET: ${PANEL_ADMIN_PASSWORD_RESET:-0}
+      TRUST_PROXY_HEADERS: "0"
+    volumes:
+      - vpn_panel_data:/data
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; d=urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=4).read(); assert b'\"ready\": true' in d or b'\"ready\":true' in d"]
+      interval: 20s
+      timeout: 6s
+      retries: 10
+      start_period: 25s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_PATH: /data/finevpn.db
+      PANEL_BASE_URL: http://vpn-panel:8000
+      PANEL_PUBLIC_URL: https://${VPN_PANEL_DOMAIN}
+      VPN_PANEL_ADMIN_USERNAME: ${VPN_PANEL_ADMIN_USERNAME}
+      VPN_PANEL_ADMIN_PASSWORD: ${VPN_PANEL_ADMIN_PASSWORD}
+      PANEL_CONFIG_PORT: ${PANEL_CONFIG_PORT:-443}
+      PANEL_SERVER_ADDRESS: ${PANEL_SERVER_ADDRESS:-}
+    volumes:
+      - finevpn_data:/data
+    expose:
+      - "8000"
+    depends_on:
+      vpn-panel:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=4)"]
+      interval: 20s
+      timeout: 6s
+      retries: 10
+      start_period: 20s
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_PATH: /data/finevpn.db
+      PANEL_BASE_URL: http://vpn-panel:8000
+      VPN_PANEL_ADMIN_USERNAME: ${VPN_PANEL_ADMIN_USERNAME}
+      VPN_PANEL_ADMIN_PASSWORD: ${VPN_PANEL_ADMIN_PASSWORD}
+    volumes:
+      - finevpn_data:/data
+    depends_on:
+      api:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?تنظیم DOMAIN در .env الزامی است}
+      VPN_PANEL_DOMAIN: ${VPN_PANEL_DOMAIN:?تنظیم VPN_PANEL_DOMAIN در .env الزامی است}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      vpn-panel:
+        condition: service_healthy
+
+volumes:
+  finevpn_data:
+  vpn_panel_data:
+  caddy_data:
+  caddy_config:

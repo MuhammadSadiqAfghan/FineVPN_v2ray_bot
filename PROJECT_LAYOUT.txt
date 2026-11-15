@@ -1,0 +1,20 @@
+FineVPN unified root layout
+--------------------------
+app.py                 Mini App API / database / panel bridge
+bot.py                 Telegram bot
+index.html             Persian-only Mini App
+main.py                User-provided main VLESS panel API + subscription
+pages.py               Panel admin and public subscription pages
+relay_vless.py         VLESS relay module
+speed_limit.py         Speed-control module
+xhttp_siz10.py         XHTTP transport module
+Dockerfile             Shared multi-target image
+docker-compose.yml     One deployment stack
+Caddyfile              HTTPS routing for both domains
+.env.example           Shared configuration template
+start.sh               One-command startup
+stop.sh / logs.sh      Stack operations
+backup.sh              Persistent data backup
+README_FA.md           Persian installation guide
+
+All project files reside at archive root; no nested application folders.
